@@ -1,7 +1,26 @@
 pipeline {
     agent any
 
+    triggers {
+        pollSCM('H/5 * * * *')
+    }
+
     stages {
+
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Linting') {
+            steps {
+                sh '''
+                pip install flake8
+                flake8 .
+                '''
+            }
+        }
 
         stage('Install Dependencies') {
             steps {
@@ -14,12 +33,26 @@ pipeline {
             }
         }
 
-        stage('Run Test') {
+        stage('Unit Test') {
             steps {
                 sh '''
                 . venv/bin/activate
-                python predict.py || true
+                python predict.py
                 '''
+            }
+        }
+
+        stage('SonarQube Analysis') {
+            steps {
+                withSonarQubeEnv('sonar') {
+                    sh '''
+                    sonar-scanner \
+                    -Dsonar.projectKey=cyber-app \
+                    -Dsonar.sources=. \
+                    -Dsonar.host.url=http://localhost:9000 \
+                    -Dsonar.login=YOUR_TOKEN
+                    '''
+                }
             }
         }
 
