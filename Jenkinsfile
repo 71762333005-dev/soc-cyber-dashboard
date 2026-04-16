@@ -3,7 +3,9 @@ pipeline {
 
     environment {
         VENV_DIR = "venv"
-        SONAR_SCANNER_HOME = tool 'SonarScanner'   // Jenkins global tool name
+        SONAR_SCANNER_HOME = tool 'SonarScanner'
+        SONAR_HOST = "http://localhost:9000"
+        SONAR_PROJECT_KEY = "soc-cyber-dashboard"
     }
 
     stages {
@@ -29,7 +31,7 @@ pipeline {
                 sh '''
                     . venv/bin/activate
                     pip install -r requirements.txt
-                    pip install flake8 pytest
+                    pip install flake8 pytest requests
                 '''
             }
         }
@@ -38,7 +40,7 @@ pipeline {
             steps {
                 sh '''
                     . venv/bin/activate
-                    flake8 . --exclude=venv --max-line-length=100 || true
+                    flake8 . --exclude=venv --max-line-length=100
                 '''
             }
         }
@@ -47,7 +49,7 @@ pipeline {
             steps {
                 sh '''
                     . venv/bin/activate
-                    pytest -v || true
+                    pytest -v
                 '''
             }
         }
@@ -55,29 +57,69 @@ pipeline {
         stage('SonarQube Analysis') {
             steps {
                 withSonarQubeEnv('soc-cyber') {
-                    sh '''
+                    sh """
                         ${SONAR_SCANNER_HOME}/bin/sonar-scanner \
-                        -Dsonar.projectKey=soc-cyber-dashboard \
+                        -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
                         -Dsonar.sources=. \
-                        -Dsonar.host.url=http://localhost:9000 \
-                        -Dsonar.login=squ_8a05e60b748facf1c424191f2c37444de3ce96ef
-                    '''
+                        -Dsonar.host.url=${SONAR_HOST} \
+                        -Dsonar.login=${SONAR_AUTH_TOKEN}
+                    """
                 }
             }
         }
 
-    stage('Quality Gate') {
-    steps {
-        timeout(time: 10, unit: 'MINUTES') {
-            script {
-                def qg = waitForQualityGate()
-                if (qg.status != 'OK') {
-                    error "Failed Quality Gate: ${qg.status}"
+        stage('Quality Gate') {
+            steps {
+                timeout(time: 10, unit: 'MINUTES') {
+                    script {
+                        def qg = waitForQualityGate()
+                        if (qg.status != 'OK') {
+                            error "❌ Sonar Quality Gate FAILED: ${qg.status}"
+                        }
+                    }
                 }
             }
         }
-    }
-}
+
+        stage('Strict Production Gate') {
+            steps {
+                script {
+                    def response = sh(
+                        script: """
+                        curl -s -u ${SONAR_AUTH_TOKEN}: \
+                        "${SONAR_HOST}/api/measures/component?component=${SONAR_PROJECT_KEY}&metricKeys=bugs,vulnerabilities"
+                        """,
+                        returnStdout: true
+                    ).trim()
+
+                    echo "Sonar Metrics Response: ${response}"
+
+                    def json = readJSON text: response
+                    def measures = json.component.measures
+
+                    int bugs = 0
+                    int vulns = 0
+
+                    for (m in measures) {
+                        if (m.metric == "bugs") {
+                            bugs = m.value.toInteger()
+                        }
+                        if (m.metric == "vulnerabilities") {
+                            vulns = m.value.toInteger()
+                        }
+                    }
+
+                    echo "Bugs: ${bugs}"
+                    echo "Vulnerabilities: ${vulns}"
+
+                    if (bugs > 0 || vulns > 0) {
+                        error "❌ STRICT PRODUCTION GATE FAILED: Bugs=${bugs}, Vulnerabilities=${vulns}"
+                    }
+
+                    echo "✅ Strict Production Gate PASSED"
+                }
+            }
+        }
 
         stage('Build Docker Image') {
             steps {
