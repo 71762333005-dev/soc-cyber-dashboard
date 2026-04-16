@@ -13,22 +13,23 @@ pipeline {
             }
         }
 
-        stage('Linting') {
-            steps {
-                sh '''
-                pip install flake8
-                flake8 .
-                '''
-            }
-        }
-
-        stage('Install Dependencies') {
+        stage('Setup Environment') {
             steps {
                 sh '''
                 python3 -m venv venv
                 . venv/bin/activate
                 pip install --upgrade pip
                 pip install -r requirements.txt
+                pip install flake8
+                '''
+            }
+        }
+
+        stage('Linting') {
+            steps {
+                sh '''
+                . venv/bin/activate
+                flake8 .
                 '''
             }
         }
