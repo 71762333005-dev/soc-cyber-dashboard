@@ -54,13 +54,13 @@ pipeline {
 
         stage('SonarQube Analysis') {
             steps {
-                withSonarQubeEnv('SonarQube') {
+                withSonarQubeEnv('soc-cyber') {
                     sh '''
                         ${SONAR_SCANNER_HOME}/bin/sonar-scanner \
                         -Dsonar.projectKey=soc-cyber-dashboard \
                         -Dsonar.sources=. \
                         -Dsonar.host.url=http://localhost:9000 \
-                        -Dsonar.login=$SONAR_TOKEN
+                        -Dsonar.login=squ_8a05e60b748facf1c424191f2c37444de3ce96ef
                     '''
                 }
             }
