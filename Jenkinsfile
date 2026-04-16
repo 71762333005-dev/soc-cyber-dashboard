@@ -33,14 +33,14 @@ pipeline {
             }
         }
 
-        stage('Lint (Flake8)') {
-            steps {
-                sh '''
-                    . venv/bin/activate
-                    flake8 . --exclude=venv --max-line-length=100 || true
-                '''
-            }
-        }
+      stage('Lint (Skip Fail)') {
+             steps {
+               sh '''
+            .      venv/bin/activate
+                   flake8 . --exclude=venv --max-line-length=100 || echo "Lint issues found but continuing build"
+                 '''
+              }
+           }
 
         stage('Unit Tests') {
             steps {
