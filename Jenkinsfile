@@ -38,8 +38,8 @@ pipeline {
             steps {
                 sh '''
                     . venv/bin/activate
-                    echo "Running Flake8 (non-blocking)..."
-                    flake8 . --exclude=venv --max-line-length=100 || echo "Lint issues found (ignored for pipeline)"
+                    echo "Running Flake8..."
+                    flake8 . --exclude=venv --max-line-length=100
                 '''
             }
         }
@@ -49,7 +49,7 @@ pipeline {
                 sh '''
                     . venv/bin/activate
                     echo "Running tests..."
-                    pytest -v || echo "Tests failed but continuing pipeline"
+                    pytest -v
                 '''
             }
         }
@@ -76,7 +76,7 @@ pipeline {
                         echo "Quality Gate Status: ${qg.status}"
 
                         if (qg.status != 'OK') {
-                            echo "WARNING: Quality Gate failed but pipeline will continue"
+                            error "Quality Gate Failed: ${qg.status}"
                         }
                     }
                 }
@@ -86,8 +86,7 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 sh '''
-                    echo "Building Docker image..."
-                    docker build -t soc-cyber-dashboard:latest . || echo "Docker build failed"
+                    docker build -t soc-cyber-dashboard:latest .
                 '''
             }
         }
