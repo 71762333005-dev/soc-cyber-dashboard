@@ -11,8 +11,8 @@ let isRefreshing = false;
 
 // Initialize dashboard when page loads
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('🚀 Initializing SOC Dashboard...');
-    
+    console.log('🚀 SOC Dashboard Initialized - Version 1.0 Feature Update');
+    alert("Dashboard Updated Successfully 🚀");    
     // Initialize charts
     initializeCharts();
     
