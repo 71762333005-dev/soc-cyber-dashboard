@@ -61,8 +61,8 @@ pipeline {
                         ${SONAR_SCANNER_HOME}/bin/sonar-scanner \
                         -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
                         -Dsonar.sources=. \
-                        -Dsonar.host.url=${SONAR_HOST} \
-                        -Dsonar.login=${SONAR_AUTH_TOKEN}
+                        -Dsonar.host.url=$http://localhost:9000\
+                        -Dsonar.login=$squ_1e3c36a09f907af5590168c964d45cfaaa3502e4
                     """
                 }
             }
