@@ -4,8 +4,6 @@ pipeline {
     environment {
         VENV_DIR = "venv"
         SONAR_SCANNER_HOME = tool 'SonarScanner'
-        SONAR_HOST = "http://localhost:9000"
-        SONAR_PROJECT_KEY = "soc-cyber-dashboard"
     }
 
     stages {
@@ -31,7 +29,7 @@ pipeline {
                 sh '''
                     . venv/bin/activate
                     pip install -r requirements.txt
-                    pip install flake8 pytest requests
+                    pip install flake8 pytest
                 '''
             }
         }
@@ -57,13 +55,13 @@ pipeline {
         stage('SonarQube Analysis') {
             steps {
                 withSonarQubeEnv('soc-cyber') {
-                    sh """
+                    sh '''
                         ${SONAR_SCANNER_HOME}/bin/sonar-scanner \
-                        -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
+                        -Dsonar.projectKey=soc-cyber-dashboard \
                         -Dsonar.sources=. \
-                        -Dsonar.host.url=$http://localhost:9000\
-                        -Dsonar.login=$squ_1e3c36a09f907af5590168c964d45cfaaa3502e4
-                    """
+                        -Dsonar.host.url=http://localhost:9000 \
+                        -Dsonar.login=squ_8a05e60b748facf1c424191f2c37444de3ce96ef
+                    '''
                 }
             }
         }
@@ -73,8 +71,10 @@ pipeline {
                 timeout(time: 10, unit: 'MINUTES') {
                     script {
                         def qg = waitForQualityGate()
+                        echo "Quality Gate Status: ${qg.status}"
+
                         if (qg.status != 'OK') {
-                            error "❌ Sonar Quality Gate FAILED: ${qg.status}"
+                            error "Quality Gate Failed: ${qg.status}"
                         }
                     }
                 }
@@ -84,39 +84,15 @@ pipeline {
         stage('Strict Production Gate') {
             steps {
                 script {
-                    def response = sh(
-                        script: """
-                        curl -s -u ${SONAR_AUTH_TOKEN}: \
-                        "${SONAR_HOST}/api/measures/component?component=${SONAR_PROJECT_KEY}&metricKeys=bugs,vulnerabilities"
-                        """,
-                        returnStdout: true
-                    ).trim()
+                    echo "Enforcing STRICT production rules via SonarQube Quality Gate..."
 
-                    echo "Sonar Metrics Response: ${response}"
+                    def qg = waitForQualityGate()
 
-                    def json = readJSON text: response
-                    def measures = json.component.measures
-
-                    int bugs = 0
-                    int vulns = 0
-
-                    for (m in measures) {
-                        if (m.metric == "bugs") {
-                            bugs = m.value.toInteger()
-                        }
-                        if (m.metric == "vulnerabilities") {
-                            vulns = m.value.toInteger()
-                        }
+                    if (qg.status != 'OK') {
+                        error "STRICT GATE FAILED ❌ (Bugs or Vulnerabilities detected)"
+                    } else {
+                        echo "STRICT GATE PASSED ✅"
                     }
-
-                    echo "Bugs: ${bugs}"
-                    echo "Vulnerabilities: ${vulns}"
-
-                    if (bugs > 0 || vulns > 0) {
-                        error "❌ STRICT PRODUCTION GATE FAILED: Bugs=${bugs}, Vulnerabilities=${vulns}"
-                    }
-
-                    echo "✅ Strict Production Gate PASSED"
                 }
             }
         }
