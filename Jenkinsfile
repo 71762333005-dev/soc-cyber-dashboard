@@ -5,13 +5,21 @@ pipeline {
 
         stage('Install Dependencies') {
             steps {
-                sh 'pip install -r requirements.txt'
+                sh '''
+                python3 -m venv venv
+                . venv/bin/activate
+                pip install --upgrade pip
+                pip install -r requirements.txt
+                '''
             }
         }
 
         stage('Run Test') {
             steps {
-                sh 'python predict.py || true'
+                sh '''
+                . venv/bin/activate
+                python predict.py || true
+                '''
             }
         }
 
@@ -19,6 +27,12 @@ pipeline {
             steps {
                 sh 'docker build -t cyber-app:latest .'
             }
+        }
+    }
+
+    post {
+        always {
+            echo "Pipeline finished"
         }
     }
 }
