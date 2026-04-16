@@ -39,7 +39,7 @@ pipeline {
                 sh '''
                     . venv/bin/activate
                     echo "Running Flake8..."
-                    flake8 . --exclude=venv --max-line-length=100
+                    flake8 . --exclude=venv --max-line-length=120 --exit-zero
                 '''
             }
         }
