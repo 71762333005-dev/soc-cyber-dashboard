@@ -34,14 +34,14 @@ pipeline {
             }
         }
 
-        stage('Lint (Flake8)') {
-            steps {
-                sh '''
-                    . venv/bin/activate
-                      flake8 . --exclude=venv --max-line-length=100 --exit-zero
-                '''
-            }
-        }
+stage('Lint (Flake8)') {
+    steps {
+        sh '''
+        . venv/bin/activate
+        flake8 . --exclude=venv --max-line-length=100 || true
+        '''
+    }
+}
 
         stage('Unit Tests') {
             steps {
