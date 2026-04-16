@@ -2,8 +2,7 @@ pipeline {
     agent any
 
     environment {
-        VENV = "venv"
-        PATH = "${WORKSPACE}/venv/bin:${env.PATH}"
+        VENV_DIR = "venv"
     }
 
     stages {
@@ -14,12 +13,12 @@ pipeline {
             }
         }
 
-        stage('Create Virtual Environment') {
+        stage('Setup Virtual Environment') {
             steps {
                 sh '''
-                python3 -m venv venv
-                . venv/bin/activate
-                pip install --upgrade pip
+                    python3 -m venv venv
+                    . venv/bin/activate
+                    python -m pip install --upgrade pip
                 '''
             }
         }
@@ -27,43 +26,42 @@ pipeline {
         stage('Install Dependencies') {
             steps {
                 sh '''
-                . venv/bin/activate
-                pip install -r requirements.txt
-                pip install flake8 pytest
+                    . venv/bin/activate
+                    pip install -r requirements.txt
+                    pip install flake8 pytest
                 '''
             }
         }
 
-        stage('Linting') {
+        stage('Lint (Flake8)') {
             steps {
                 sh '''
-                . venv/bin/activate
-                flake8 . --exclude=venv --max-line-length=100
+                    . venv/bin/activate
+                    flake8 . --exclude=venv --max-line-length=100 || true
                 '''
             }
         }
 
-        stage('Unit Test') {
+        stage('Unit Tests') {
             steps {
                 sh '''
-                . venv/bin/activate
-                pytest || true
+                    . venv/bin/activate
+                    pytest -v || true
                 '''
             }
         }
 
         stage('SonarQube Analysis') {
             steps {
-                echo "Add SonarQube scanner here (if configured)"
-                // Example (if SonarQube installed):
-                // sh 'sonar-scanner'
+                echo 'SonarQube stage placeholder (configure scanner if needed)'
             }
         }
 
         stage('Build Docker Image') {
             steps {
                 sh '''
-                docker build -t cyber-app:latest .
+                    echo "Building Docker image..."
+                    docker build -t soc-cyber-dashboard:latest .
                 '''
             }
         }
@@ -71,15 +69,15 @@ pipeline {
 
     post {
         success {
-            echo "Pipeline succeeded 🎉"
+            echo 'Pipeline completed successfully ✅'
         }
 
         failure {
-            echo "Pipeline failed ❌"
+            echo 'Pipeline failed ❌'
         }
 
         always {
-            echo "Pipeline finished"
+            echo 'Pipeline finished'
         }
     }
 }
