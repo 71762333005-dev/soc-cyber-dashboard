@@ -3,6 +3,7 @@ pipeline {
 
     environment {
         VENV_DIR = "venv"
+        SONAR_PROJECT_KEY = "soc-cyber-dashboard"
     }
 
     stages {
@@ -28,32 +29,48 @@ pipeline {
                 sh '''
                     . venv/bin/activate
                     pip install -r requirements.txt
-                    pip install flake8 pytest
+                    pip install flake8 pytest sonar-scanner
                 '''
             }
         }
 
-      stage('Lint (Skip Fail)') {
-             steps {
-               sh '''
-            .      venv/bin/activate
-                   flake8 . --exclude=venv --max-line-length=100 || echo "Lint issues found but continuing build"
-                 '''
-              }
-           }
+        stage('Lint (Flake8)') {
+            steps {
+                sh '''
+                    . venv/bin/activate
+                    flake8 . --exclude=venv --max-line-length=100
+                '''
+            }
+        }
 
         stage('Unit Tests') {
             steps {
                 sh '''
                     . venv/bin/activate
-                    pytest -v || true
+                    pytest -v
                 '''
             }
         }
 
         stage('SonarQube Analysis') {
             steps {
-                echo 'SonarQube stage placeholder (configure scanner if needed)'
+                withSonarQubeEnv('sonarqube') {
+                    sh '''
+                        sonar-scanner \
+                        -Dsonar.projectKey=soc-cyber-dashboard \
+                        -Dsonar.projectName="SOC Cyber Dashboard" \
+                        -Dsonar.sources=. \
+                        -Dsonar.host.url=http://localhost:9000
+                    '''
+                }
+            }
+        }
+
+        stage('Quality Gate') {
+            steps {
+                timeout(time: 2, unit: 'MINUTES') {
+                    waitForQualityGate abortPipeline: true
+                }
             }
         }
 
