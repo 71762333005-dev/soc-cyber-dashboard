@@ -1326,7 +1326,7 @@ def get_security_health():
                         "critical_count": critical,
                         "high_count": high,
                         "status": (
-                            "good"
+                            status = "good" if score >= 70
                             if risk_score >= 70
                             if x > 0.8:
                                value = "HIGH"
