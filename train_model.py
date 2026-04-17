@@ -46,7 +46,6 @@ def load_and_preprocess_data():
     ]
 
     df = pd.read_csv("dataset/nsl_kdd.csv", names=column_names)
-
     print(f"✅ Dataset loaded: {df.shape}")
     return df
 
@@ -64,10 +63,7 @@ def engineer_features(df):
 
     categorical_features = ["protocol_type", "service", "flag"]
 
-    # FIX 1: ensure stable columns (IMPORTANT)
     X = pd.get_dummies(df[selected_features], columns=categorical_features)
-    X = X.sort_index(axis=1)
-
     y = df["attack_type"]
 
     def simplify_attack(a):
@@ -105,6 +101,9 @@ def train_model(X, y):
     label_encoder = LabelEncoder()
     y_encoded = label_encoder.fit_transform(y)
 
+    # IMPORTANT: keep same feature order for predict.py compatibility
+    feature_names = X.columns.tolist()
+
     X_train, X_test, y_train, y_test = train_test_split(
         X,
         y_encoded,
@@ -137,7 +136,7 @@ def train_model(X, y):
     print("✅ Training complete")
     print(metrics)
 
-    return model, label_encoder, metrics
+    return model, label_encoder, metrics, feature_names
 
 
 # ---------------- SAVE ARTIFACTS ---------------- #
@@ -148,15 +147,13 @@ def save_model_artifacts(model, label_encoder, metrics, feature_names):
 
     joblib.dump(model, "model/random_forest_model.joblib")
 
-    # FIX 2: save label encoder properly
-    joblib.dump(label_encoder, "model/label_encoder.joblib")
-
     attack_mapping = pd.DataFrame({
         "attack_id": range(len(label_encoder.classes_)),
         "attack_name": label_encoder.classes_,
     })
     attack_mapping.to_csv("model/attack_mapping.csv", index=False)
 
+    # IMPORTANT: must match predict.py expectations
     with open("model/feature_names.json", "w") as f:
         json.dump(feature_names, f, indent=2)
 
@@ -187,9 +184,9 @@ def main():
 
     X, y = engineer_features(df)
 
-    model, label_encoder, metrics = train_model(X, y)
+    model, label_encoder, metrics, feature_names = train_model(X, y)
 
-    save_model_artifacts(model, label_encoder, metrics, X.columns.tolist())
+    save_model_artifacts(model, label_encoder, metrics, feature_names)
 
     print("=" * 50)
     print("✅ TRAINING COMPLETE")
