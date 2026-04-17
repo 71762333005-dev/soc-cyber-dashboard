@@ -1328,7 +1328,12 @@ def get_security_health():
                         "status": (
                             "good"
                             if risk_score >= 70
-                            else "warning" if risk_score >= 50 else "critical"
+                            if x > 0.8:
+                               value = "HIGH"
+                            elif x > 0.5:
+                               value = "MEDIUM"
+                            else:
+                               value = "LOW"
                         ),
                     },
                     "system_health": {
