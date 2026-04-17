@@ -59,7 +59,6 @@ class AttackPredictor:
 
         if os.path.exists(mapping_path):
             df = pd.read_csv(mapping_path)
-
             self.attack_mapping = dict(zip(df["attack_id"], df["attack_name"]))
             self.reverse_mapping = dict(zip(df["attack_name"], df["attack_id"]))
 
@@ -84,7 +83,8 @@ class AttackPredictor:
             if isinstance(raw_data, dict) and raw_key in raw_data and feature in self.feature_names:
                 try:
                     df.at[0, feature] = float(raw_data[raw_key])
-                except:
+
+                except (ValueError, TypeError):
                     df.at[0, feature] = 0.0
 
         self._encode_categorical(df, raw_data)
@@ -125,7 +125,6 @@ class AttackPredictor:
             prediction_id, confidence = self._get_prediction(X)
 
             attack_type = self.attack_mapping.get(int(prediction_id), "unknown")
-
             risk_level = self._calculate_risk(attack_type, confidence)
 
             self.log_prediction(input_data, attack_type, confidence, risk_level)
@@ -156,7 +155,6 @@ class AttackPredictor:
 
         return "LOW"
 
-    # ✅ FIXED HERE (main issue resolved)
     def log_prediction(self, input_data, attack_type, confidence, risk_level):
         try:
             os.makedirs("data", exist_ok=True)
@@ -170,7 +168,6 @@ class AttackPredictor:
                 dst_bytes = input_data.get("dst_bytes", 0)
                 flag = input_data.get("flag", "unknown")
             else:
-                # fallback for list/array inputs (unit tests)
                 src_ip = "unknown"
                 duration = input_data[0] if len(input_data) > 0 else 0
                 protocol_type = "unknown"
