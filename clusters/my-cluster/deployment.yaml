@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: soc-dashboard
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: soc-dashboard
+  template:
+    metadata:
+      labels:
+        app: soc-dashboard
+    spec:
+      containers:
+      - name: soc-dashboard
+        image: asmi25/soc-dashboard:latest
+        ports:
+        - containerPort: 5000
