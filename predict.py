@@ -133,7 +133,7 @@ class AttackPredictor:
             logger.error(f"Prediction error: {e}")
             return "error", 0.0, "UNKNOWN"
 
-    def _get_prediction(self, X):
+    def _get_prediction(self, x):
         prediction = self.model.predict(X)[0]
         probabilities = self.model.predict_proba(X)[0]
         confidence = float(max(probabilities))
