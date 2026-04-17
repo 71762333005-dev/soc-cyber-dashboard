@@ -54,20 +54,21 @@ pipeline {
             }
         }
 
-        stage('SonarQube Analysis') {
-            steps {
-                withSonarQubeEnv('soc-cyber') {
-                    sh '''
-                    sonar-scanner \
-                    -Dsonar.projectKey=soc-cyber-dashboard \
-                    -Dsonar.sources=. \
-                    -Dsonar.host.url=http://192.168.1.102:9000 \
-                    -Dsonar.login=$SONAR_TOKEN \
-                    -Dsonar.python.coverage.reportPaths=coverage.xml
-                    '''
-                }
-            }
+      stage('SonarQube Analysis') {
+       steps {
+        withSonarQubeEnv('soc-cyber') {
+            sh '''
+            sonar-scanner \
+            -Dsonar.projectKey=soc-cyber-dashboard \
+            -Dsonar.sources=. \
+            -Dsonar.host.url=http://192.168.1.102:9000 \
+            -Dsonar.login=$SONAR_TOKEN \
+            -Dsonar.python.coverage.reportPaths=coverage.xml \
+            -Dsonar.exclusions=venv/**,**/__pycache__/**,**/*.csv,**/*.pkl
+            '''
         }
+    }
+}
 
         stage('Quality Gate') {
             steps {
