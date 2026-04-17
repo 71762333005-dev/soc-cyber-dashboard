@@ -98,7 +98,10 @@ def get_metrics():
 def get_traffic_monitoring():
     try:
         now = datetime.now()
-        labels, packets_data, bytes_data, connections_data = [], [], [], []
+        labels = []
+        packets_data = []
+        bytes_data = []
+        connections_data = []
 
         df = None
         if os.path.exists(PREDICTIONS_LOG_FILE):
