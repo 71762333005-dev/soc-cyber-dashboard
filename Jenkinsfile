@@ -55,20 +55,19 @@ pipeline {
                 '''
             }
         }
-
-        stage('SonarQube Analysis') {
-            steps {
-                withSonarQubeEnv('soc-cyber') {
-                    sh '''
-                        ${SONAR_SCANNER_HOME}/bin/sonar-scanner \
-                        -Dsonar.projectKey=soc-cyber-dashboard \
-                        -Dsonar.sources=. \
-                        -Dsonar.host.url=http://localhost:9000 \
-                        -Dsonar.login=$squ_431e46292703e906f351c285e7d2da002b5daca4
-                    '''
-                }
-            }
+stage('SonarQube Analysis') {
+    steps {
+        withSonarQubeEnv('soc-cyber') {
+            sh '''
+                ${SONAR_SCANNER_HOME}/bin/sonar-scanner \
+                -Dsonar.projectKey=soc-cyber-dashboard \
+                -Dsonar.sources=. \
+                -Dsonar.host.url=http://192.168.1.102:9000 \
+                -Dsonar.token=$SONAR_TOKEN
+            '''
         }
+    }
+}
 
         // 🚫 COMPLETELY REMOVED webhook dependency
         stage('Quality Gate') {
