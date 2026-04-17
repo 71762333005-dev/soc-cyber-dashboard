@@ -16,7 +16,7 @@ from io import StringIO
 import hashlib
 
 app = Flask(__name__)
-app.config["SECRET_KEY"] = "soc-dashboard-secret-key-2024"
+app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-key-change-me")
 app.config["JSON_SORT_KEYS"] = False
 
 # Ensure directories exist
