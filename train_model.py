@@ -63,7 +63,7 @@ def engineer_features(df):
 
     categorical_features = ["protocol_type", "service", "flag"]
 
-    X = pd.get_dummies(df[selected_features], columns=categorical_features)
+    x = pd.get_dummies(df[selected_features], columns=categorical_features)
     y = df["attack_type"]
 
     def simplify_attack(a):
@@ -85,27 +85,26 @@ def engineer_features(df):
     y = y.apply(simplify_attack)
 
     mask = y != "unknown"
-    X = X[mask]
+    x = x[mask]
     y = y[mask]
 
-    print(f"✅ Features: {X.shape[1]}")
+    print(f"✅ Features: {x.shape[1]}")
     print(f"✅ Classes:\n{y.value_counts()}")
 
-    return X, y
+    return x, y
 
 
 # ---------------- TRAIN MODEL ---------------- #
-def train_model(X, y):
+def train_model(x, y):
     print("🤖 Training model...")
 
     label_encoder = LabelEncoder()
     y_encoded = label_encoder.fit_transform(y)
 
-    # IMPORTANT: keep same feature order for predict.py compatibility
-    feature_names = X.columns.tolist()
+    feature_names = x.columns.tolist()
 
-    X_train, X_test, y_train, y_test = train_test_split(
-        X,
+    x_train, x_test, y_train, y_test = train_test_split(
+        x,
         y_encoded,
         test_size=0.2,
         random_state=42,
@@ -121,9 +120,9 @@ def train_model(X, y):
         n_jobs=-1,
     )
 
-    model.fit(X_train, y_train)
+    model.fit(x_train, y_train)
 
-    y_pred = model.predict(X_test)
+    y_pred = model.predict(x_test)
 
     metrics = {
         "accuracy": accuracy_score(y_test, y_pred),
@@ -153,7 +152,6 @@ def save_model_artifacts(model, label_encoder, metrics, feature_names):
     })
     attack_mapping.to_csv("model/attack_mapping.csv", index=False)
 
-    # IMPORTANT: must match predict.py expectations
     with open("model/feature_names.json", "w") as f:
         json.dump(feature_names, f, indent=2)
 
@@ -182,9 +180,9 @@ def main():
     if df is None:
         return
 
-    X, y = engineer_features(df)
+    x, y = engineer_features(df)
 
-    model, label_encoder, metrics, feature_names = train_model(X, y)
+    model, label_encoder, metrics, feature_names = train_model(x, y)
 
     save_model_artifacts(model, label_encoder, metrics, feature_names)
 
