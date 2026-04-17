@@ -258,7 +258,6 @@ def health_check():
         "model_loaded": predictor.model_loaded,
         "version": "2.0.0"
     })
-
-
+    
 if __name__ == "__main__":
-    app.run(debug=False, host="0.0.0.0", port=5000)
+    app.run(debug=False, host="0.0.0.0", port=80)
