@@ -1,6 +1,6 @@
 """
 Cyber Attack Detection Dashboard - Complete Implementation
-All 15 features fully implemented (SonarQube Clean Version)
+Fixed for Kubernetes (CrashLoopBackOff + Port mismatch resolved)
 """
 
 from flask import Flask, render_template, jsonify, request
@@ -19,7 +19,7 @@ SECRET_KEY = os.getenv("SECRET_KEY", "dev-only-key")
 app.config["SECRET_KEY"] = SECRET_KEY
 app.config["JSON_SORT_KEYS"] = False
 
-# ---------------- CONSTANTS (SONAR FIX) ---------------- #
+# ---------------- CONSTANTS ---------------- #
 PREDICTIONS_LOG_FILE = "data/predictions_log.csv"
 ALERTS_LOG_FILE = "data/alerts_log.csv"
 
@@ -28,9 +28,8 @@ os.makedirs("data", exist_ok=True)
 os.makedirs("reports", exist_ok=True)
 os.makedirs("model", exist_ok=True)
 
-
 # ============================================================================
-# FEATURE 1: KEY METRICS CARDS
+# FEATURE 1: KEY METRICS
 # ============================================================================
 @app.route("/api/metrics")
 def get_metrics():
@@ -199,7 +198,7 @@ def predict_attack():
 def get_alerts():
     try:
         if not os.path.exists(ALERTS_LOG_FILE):
-            return jsonify({"alerts": [], "counts": {}, "total": 0})
+            return jsonify({"alerts": [], "total": 0})
 
         df = pd.read_csv(ALERTS_LOG_FILE)
 
@@ -258,6 +257,13 @@ def health_check():
         "model_loaded": predictor.model_loaded,
         "version": "2.0.0"
     })
-    
+
+# NEW: simple ping test
+@app.route("/ping")
+def ping():
+    return "OK", 200
+
+
+# ===================== IMPORTANT FIX ===================== #
 if __name__ == "__main__":
-    app.run(debug=False, host="0.0.0.0", port=80)
+    app.run(debug=False, host="0.0.0.0", port=5000)
