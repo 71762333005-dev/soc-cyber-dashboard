@@ -79,14 +79,14 @@ pipeline {
             }
         }
 
-        stage('Build Docker Image') {
-            steps {
-                sh '''
-                docker build -t soc-cyber-dashboard .
-                '''
-            }
-        }
-    }
+     stage('Build Docker Image') {
+        steps {
+           sh '''
+           docker build -t asmi25/soc-dashboard:latest .
+          '''
+       }
+     }
+  }
 
     post {
         always {
