@@ -5,8 +5,6 @@ import pytest
 def test_app_import():
     try:
         import app
-
-        assert True
     except Exception as e:
         pytest.fail(f"App failed to load: {e}")
 
@@ -25,8 +23,6 @@ def test_home_route():
 def test_predict_import():
     try:
         import predict
-
-        assert True
     except Exception as e:
         pytest.fail(f"Predict module error: {e}")
 
