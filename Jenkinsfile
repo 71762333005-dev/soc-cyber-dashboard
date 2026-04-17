@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        SONAR_TOKEN = credentials('soc-cyber-token')
+        SONAR_TOKEN = credentials('jenkins-soc')
     }
 
     stages {
@@ -28,7 +28,7 @@ pipeline {
                 sh '''
                 . venv/bin/activate
                 pip install -r requirements.txt
-                pip install flake8 pytest
+                pip install flake8 pytest pytest-cov
                 '''
             }
         }
@@ -42,29 +42,32 @@ pipeline {
             }
         }
 
-        stage('Unit Tests') {
+        stage('Unit Tests + Coverage') {
             steps {
                 sh '''
                 . venv/bin/activate
-                PYTHONPATH=. pytest tests/ -v --junitxml=test-results.xml
+                PYTHONPATH=. pytest tests/ -v \
+                --cov=. \
+                --cov-report=xml:coverage.xml \
+                --junitxml=test-results.xml
                 '''
             }
         }
-         stage('SonarQube Analysis') {
-             steps {
-                 withSonarQubeEnv('soc-cyber') {
-                 withCredentials([string(credentialsId: 'jenkins-soc', variable: 'SONAR_TOKEN')]) {
-                 sh '''
+
+        stage('SonarQube Analysis') {
+            steps {
+                withSonarQubeEnv('soc-cyber') {
+                    sh '''
                     sonar-scanner \
                     -Dsonar.projectKey=soc-cyber-dashboard \
                     -Dsonar.sources=. \
                     -Dsonar.host.url=http://192.168.1.102:9000 \
-                    -Dsonar.login=$SONAR_TOKEN
-                '''
+                    -Dsonar.login=$SONAR_TOKEN \
+                    -Dsonar.python.coverage.reportPaths=coverage.xml
+                    '''
+                }
             }
         }
-    }
-}
 
         stage('Quality Gate') {
             steps {
