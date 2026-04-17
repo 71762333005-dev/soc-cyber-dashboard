@@ -31,7 +31,7 @@ class AttackPredictor:
             model_path = "model/random_forest_model.joblib"
 
             if not os.path.exists(model_path):
-                logger.warning("No trained model found. Run training first.")
+                logger.warning("Model file not found. Training required.")
                 return False
 
             self.model = joblib.load(model_path)
@@ -44,23 +44,35 @@ class AttackPredictor:
             return True
 
         except Exception as e:
-            logger.error(f"Error loading model: {e}")
+            logger.error(f"Model loading failed: {e}")
+            self.model_loaded = False
             return False
 
     def _load_features(self):
         feature_path = "model/feature_names.json"
 
         if os.path.exists(feature_path):
-            with open(feature_path, "r") as f:
-                self.feature_names = json.load(f)
+            try:
+                with open(feature_path, "r") as f:
+                    self.feature_names = json.load(f)
+            except Exception as e:
+                logger.error(f"Feature load error: {e}")
+                self.feature_names = []
+        else:
+            self.feature_names = []
 
     def _load_attack_mapping(self):
         mapping_path = "model/attack_mapping.csv"
 
         if os.path.exists(mapping_path):
-            df = pd.read_csv(mapping_path)
-            self.attack_mapping = dict(zip(df["attack_id"], df["attack_name"]))
-            self.reverse_mapping = dict(zip(df["attack_name"], df["attack_id"]))
+            try:
+                df = pd.read_csv(mapping_path)
+                self.attack_mapping = dict(zip(df["attack_id"], df["attack_name"]))
+                self.reverse_mapping = dict(zip(df["attack_name"], df["attack_id"]))
+            except Exception as e:
+                logger.error(f"Attack mapping error: {e}")
+                self.attack_mapping = {}
+                self.reverse_mapping = {}
 
     def preprocess_input(self, raw_data):
         df = pd.DataFrame(0, index=[0], columns=self.feature_names)
@@ -79,15 +91,15 @@ class AttackPredictor:
             "dst_host_srv_count": "dst_host_srv_count",
         }
 
-        for raw_key, feature in numeric_map.items():
-            if isinstance(raw_data, dict) and raw_key in raw_data and feature in self.feature_names:
-                try:
-                    df.at[0, feature] = float(raw_data[raw_key])
+        if isinstance(raw_data, dict):
+            for raw_key, feature in numeric_map.items():
+                if raw_key in raw_data and feature in df.columns:
+                    try:
+                        df.at[0, feature] = float(raw_data[raw_key])
+                    except (ValueError, TypeError):
+                        df.at[0, feature] = 0.0
 
-                except (ValueError, TypeError):
-                    df.at[0, feature] = 0.0
-
-        self._encode_categorical(df, raw_data)
+            self._encode_categorical(df, raw_data)
 
         return df
 
@@ -110,17 +122,19 @@ class AttackPredictor:
 
         val = value.upper() if upper else value.lower()
 
-        for col in self.feature_names:
-            if col == f"{prefix}{val}":
-                df[col] = 1
+        col_name = f"{prefix}{val}"
+        if col_name in df.columns:
+            df[col_name] = 1
 
     def predict(self, input_data):
-        if not self.model_loaded:
+        if not self.model_loaded or self.model is None:
             return "Model not loaded", 0.0, "UNKNOWN"
 
         try:
             X = self.preprocess_input(input_data)
-            X = X[self.feature_names]
+
+            # SAFE COLUMN ALIGNMENT (prevents crash)
+            X = X.reindex(columns=self.feature_names, fill_value=0)
 
             prediction_id, confidence = self._get_prediction(X)
 
@@ -137,8 +151,17 @@ class AttackPredictor:
 
     def _get_prediction(self, x):
         prediction = self.model.predict(x)[0]
-        probabilities = self.model.predict_proba(x)[0]
-        confidence = float(max(probabilities))
+
+        confidence = 0.0
+        try:
+            if hasattr(self.model, "predict_proba"):
+                probabilities = self.model.predict_proba(x)[0]
+                confidence = float(max(probabilities))
+            else:
+                confidence = 0.5
+        except Exception:
+            confidence = 0.5
+
         return prediction, confidence
 
     def _calculate_risk(self, attack_type, confidence):
