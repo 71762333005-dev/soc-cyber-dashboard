@@ -6,7 +6,6 @@ All 15 features fully implemented (SonarQube Clean Version)
 from flask import Flask, render_template, jsonify, request
 import pandas as pd
 import numpy as np
-import json
 import os
 from datetime import datetime, timedelta
 import random
@@ -15,16 +14,14 @@ import hashlib
 
 app = Flask(__name__)
 
-# ---------------- SAFE CONFIG (SONAR FIX) ---------------- #
-SECRET_KEY = os.getenv("SECRET_KEY")
-if not SECRET_KEY:
-    SECRET_KEY = "dev-only-key"
-
+# ---------------- SAFE CONFIG ---------------- #
+SECRET_KEY = os.getenv("SECRET_KEY", "dev-only-key")
 app.config["SECRET_KEY"] = SECRET_KEY
-
-# removed JSON_SORT_KEYS (deprecated / sonar warning)
-
 app.config["JSON_SORT_KEYS"] = False
+
+# ---------------- CONSTANTS (SONAR FIX) ---------------- #
+PREDICTIONS_LOG_FILE = "data/predictions_log.csv"
+ALERTS_LOG_FILE = "data/alerts_log.csv"
 
 # Ensure directories exist
 os.makedirs("data", exist_ok=True)
@@ -40,8 +37,8 @@ def get_metrics():
     try:
         df = None
 
-        if os.path.exists("data/predictions_log.csv"):
-            df = pd.read_csv("data/predictions_log.csv")
+        if os.path.exists(PREDICTIONS_LOG_FILE):
+            df = pd.read_csv(PREDICTIONS_LOG_FILE)
 
         if df is not None and not df.empty:
             total_requests = len(df)
@@ -52,13 +49,13 @@ def get_metrics():
             detected_attacks = 34
             attack_rate = 0.27
 
-        if os.path.exists("data/alerts_log.csv"):
-            alerts = pd.read_csv("data/alerts_log.csv")
+        high_risk = 7
+        medium_risk = 12
+
+        if os.path.exists(ALERTS_LOG_FILE):
+            alerts = pd.read_csv(ALERTS_LOG_FILE)
             high_risk = len(alerts[alerts["risk_level"] == "CRITICAL"])
             medium_risk = len(alerts[alerts["risk_level"] == "HIGH"])
-        else:
-            high_risk = 7
-            medium_risk = 12
 
         active_connections = random.randint(200, 350)
 
@@ -90,7 +87,7 @@ def get_metrics():
             }
         })
 
-    except Exception as e:
+    except Exception:
         return jsonify({"success": False, "error": "internal_error"}), 500
 
 
@@ -101,14 +98,11 @@ def get_metrics():
 def get_traffic_monitoring():
     try:
         now = datetime.now()
-        labels = []
-        packets_data = []
-        bytes_data = []
-        connections_data = []
+        labels, packets_data, bytes_data, connections_data = [], [], [], []
 
         df = None
-        if os.path.exists("data/predictions_log.csv"):
-            df = pd.read_csv("data/predictions_log.csv")
+        if os.path.exists(PREDICTIONS_LOG_FILE):
+            df = pd.read_csv(PREDICTIONS_LOG_FILE)
             df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
 
         for i in range(23, -1, -1):
@@ -148,7 +142,7 @@ def get_traffic_monitoring():
 
 
 # ============================================================================
-# FEATURE 3: PREDICTION (UNCHANGED OUTPUT)
+# FEATURE 3: PREDICTION
 # ============================================================================
 @app.route("/api/predict", methods=["POST"])
 def predict_attack():
@@ -175,14 +169,12 @@ def predict_attack():
 
         attack_type, confidence, risk_level = predictor.predict(input_features)
 
-        risk_score = confidence * 100
-
         return jsonify({
             "success": True,
             "attack_type": attack_type,
             "confidence": round(confidence * 100, 1),
             "risk_level": risk_level,
-            "risk_score": round(risk_score, 1),
+            "risk_score": round(confidence * 100, 1),
             "timestamp": datetime.now().strftime("%H:%M:%S"),
             "recommendation": {
                 "dos": "Block source IP",
@@ -198,15 +190,15 @@ def predict_attack():
 
 
 # ============================================================================
-# FEATURE 4: ALERTS (SAFE)
+# FEATURE 4: ALERTS
 # ============================================================================
 @app.route("/api/alerts")
 def get_alerts():
     try:
-        if not os.path.exists("data/alerts_log.csv"):
+        if not os.path.exists(ALERTS_LOG_FILE):
             return jsonify({"alerts": [], "counts": {}, "total": 0})
 
-        df = pd.read_csv("data/alerts_log.csv")
+        df = pd.read_csv(ALERTS_LOG_FILE)
 
         alerts = []
         for _, row in df.head(20).iterrows():
@@ -225,19 +217,18 @@ def get_alerts():
 
 
 # ============================================================================
-# FEATURE 5: DISTRIBUTION (UNCHANGED OUTPUT)
+# FEATURE 5: DISTRIBUTION
 # ============================================================================
 @app.route("/api/attack-distribution")
 def attack_distribution():
     try:
-        if not os.path.exists("data/predictions_log.csv"):
+        if not os.path.exists(PREDICTIONS_LOG_FILE):
             return jsonify({
                 "labels": ["NORMAL", "DOS", "PROBE", "R2L", "U2R"],
                 "values": [62, 23, 10, 3, 2],
             })
 
-        df = pd.read_csv("data/predictions_log.csv")
-
+        df = pd.read_csv(PREDICTIONS_LOG_FILE)
         counts = df["attack_type"].value_counts().to_dict()
 
         return jsonify({
@@ -250,7 +241,7 @@ def attack_distribution():
 
 
 # ============================================================================
-# MAIN ROUTES (FIXED DUPLICATE ISSUE)
+# MAIN ROUTES
 # ============================================================================
 @app.route("/")
 def dashboard():
