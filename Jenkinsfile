@@ -4,6 +4,7 @@ pipeline {
     environment {
         VENV_DIR = "venv"
         SONAR_SCANNER_HOME = tool 'SonarScanner'
+        PYTHONPATH = "."
     }
 
     stages {
@@ -49,7 +50,7 @@ pipeline {
                 sh '''
                     . venv/bin/activate
                     echo "Running tests..."
-                    pytest -v
+                    pytest -v --junitxml=test-results.xml
                 '''
             }
         }
@@ -100,6 +101,7 @@ pipeline {
             echo 'Pipeline failed ❌'
         }
         always {
+            junit 'test-results.xml'
             echo 'Pipeline finished'
         }
     }
