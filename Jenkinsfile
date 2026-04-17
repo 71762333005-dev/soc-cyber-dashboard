@@ -2,9 +2,7 @@ pipeline {
     agent any
 
     environment {
-        VENV_DIR = "venv"
-        SONAR_SCANNER_HOME = tool 'SonarScanner'
-        SONAR_TOKEN = credentials('soc-token')
+        SONAR_TOKEN = credentials('soc-cyber-token')
     }
 
     stages {
@@ -18,9 +16,9 @@ pipeline {
         stage('Setup Virtual Environment') {
             steps {
                 sh '''
-                    python3 -m venv venv
-                    . venv/bin/activate
-                    python -m pip install --upgrade pip
+                python3 -m venv venv
+                . venv/bin/activate
+                pip install --upgrade pip
                 '''
             }
         }
@@ -28,9 +26,9 @@ pipeline {
         stage('Install Dependencies') {
             steps {
                 sh '''
-                    . venv/bin/activate
-                    pip install -r requirements.txt
-                    pip install flake8 pytest
+                . venv/bin/activate
+                pip install -r requirements.txt
+                pip install flake8 pytest
                 '''
             }
         }
@@ -38,9 +36,8 @@ pipeline {
         stage('Lint (Flake8)') {
             steps {
                 sh '''
-                    . venv/bin/activate
-                    echo "Running Flake8..."
-                    flake8 . --exclude=venv --max-line-length=120 --exit-zero
+                . venv/bin/activate
+                flake8 . --exclude=venv --max-line-length=120 --exit-zero
                 '''
             }
         }
@@ -48,59 +45,54 @@ pipeline {
         stage('Unit Tests') {
             steps {
                 sh '''
-                    . venv/bin/activate
-                    export PYTHONPATH=.
-                    echo "Running tests..."
-                    pytest tests/ -v --junitxml=test-results.xml
+                . venv/bin/activate
+                PYTHONPATH=. pytest tests/ -v --junitxml=test-results.xml
                 '''
             }
         }
- stage('SonarQube Analysis') {
-    steps {
-        withSonarQubeEnv('soc-cyber') {
-            withCredentials([string(credentialsId: 'soc-cyber-token', variable: 'SONAR_TOKEN')]) {
-                sh """
-                    sonar-scanner \
-                    -Dsonar.projectKey=soc-cyber-dashboard \
-                    -Dsonar.sources=. \
-                    -Dsonar.host.url=http://192.168.1.102:9000 \
-                    -Dsonar.token=$SONAR_TOKEN
-                """
+
+        stage('SonarQube Analysis') {
+            steps {
+                withSonarQubeEnv('soc-cyber') {
+                    withCredentials([string(credentialsId: 'soc-cyber-token', variable: 'SONAR_TOKEN')]) {
+                        sh """
+                        sonar-scanner \
+                        -Dsonar.projectKey=soc-cyber-dashboard \
+                        -Dsonar.sources=. \
+                        -Dsonar.host.url=http://192.168.1.102:9000 \
+                        -Dsonar.token=$SONAR_TOKEN
+                        """
+                    }
+                }
             }
         }
-    }
-}
 
-        // 🚫 COMPLETELY REMOVED webhook dependency
         stage('Quality Gate') {
             steps {
-                echo "Skipping Quality Gate check (no webhook setup)"
+                timeout(time: 2, unit: 'MINUTES') {
+                    waitForQualityGate abortPipeline: true
+                }
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                script {
-                    try {
-                        sh 'docker build -t soc-cyber-dashboard:latest .'
-                        echo "Docker build successful"
-                    } catch (Exception e) {
-                        echo "Docker build failed but continuing..."
-                    }
-                }
+                sh '''
+                docker build -t soc-cyber-dashboard .
+                '''
             }
         }
     }
 
     post {
+        always {
+            echo "Pipeline finished"
+        }
         success {
-            echo 'Pipeline completed successfully ✅'
+            echo "Pipeline SUCCESS ✅"
         }
         failure {
-            echo 'Pipeline failed ❌'
-        }
-        always {
-            echo 'Pipeline finished'
+            echo "Pipeline failed ❌"
         }
     }
 }
