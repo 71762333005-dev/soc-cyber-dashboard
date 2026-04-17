@@ -55,14 +55,18 @@ pipeline {
                 '''
             }
         }
-      swithCredentials([string(credentialsId: 'soc-cyber-token', variable: 'SONAR_TOKEN')]) {
-         sh '''
-        sonar-scanner \
-        -Dsonar.projectKey=soc-cyber-dashboard \
-        -Dsonar.sources=. \
-        -Dsonar.host.url=http://192.168.1.102:9000 \
-        -Dsonar.token=$SONAR_TOKEN
-    '''
+      stage('SonarQube Analysis') {
+             steps {
+                withCredentials([string(credentialsId: 'soc-cyber-token', variable: 'SONAR_TOKEN')]) {
+                  sh '''
+                     sonar-scanner \
+                      -Dsonar.projectKey=soc-cyber-dashboard \
+                      -Dsonar.sources=. \
+                      -Dsonar.host.url=http://192.168.1.102:9000 \
+                      -Dsonar.token=$SONAR_TOKEN
+            '''
+        }
+    }
 }
 
         // 🚫 COMPLETELY REMOVED webhook dependency
