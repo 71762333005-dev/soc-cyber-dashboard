@@ -14,7 +14,6 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# CONSTANT (fix Sonar duplicate literal issue)
 PREDICTIONS_LOG_FILE = "data/predictions_log.csv"
 
 
@@ -121,8 +120,8 @@ class AttackPredictor:
             X = X[self.feature_names]
 
             prediction_id, confidence = self._get_prediction(X)
-            attack_type = self.attack_mapping.get(prediction_id, "unknown")
 
+            attack_type = self.attack_mapping.get(prediction_id, "unknown")
             risk_level = self._calculate_risk(attack_type, confidence)
 
             self.log_prediction(input_data, attack_type, confidence, risk_level)
@@ -134,9 +133,15 @@ class AttackPredictor:
             return "error", 0.0, "UNKNOWN"
 
     def _get_prediction(self, x):
-        prediction = self.model.predict(X)[0]
-        probabilities = self.model.predict_proba(X)[0]
+        """
+        FIXED:
+        - removed wrong variable X
+        - fixed consistency
+        """
+        prediction = self.model.predict(x)[0]
+        probabilities = self.model.predict_proba(x)[0]
         confidence = float(max(probabilities))
+
         return prediction, confidence
 
     def _calculate_risk(self, attack_type, confidence):
