@@ -86,7 +86,7 @@ def load_and_preprocess_data():
     return df, column_names
 
 
-def engineer_features(df, column_names):
+def engineer_features(df):
     """Feature engineering and selection"""
     print("🔧 Engineering features...")
 
@@ -191,7 +191,7 @@ def engineer_features(df, column_names):
     return X, y_simplified
 
 
-def train_model(X, y):
+def train_model(x, y):
     """Train the Random Forest model"""
     print("🤖 Training Random Forest model...")
 
@@ -200,7 +200,7 @@ def train_model(X, y):
     y_encoded = label_encoder.fit_transform(y)
 
     # Split data
-    X_train, X_test, y_train, y_test = train_test_split(
+    x_train, x_test, y_train, y_test = train_test_split(...)
         X, y_encoded, test_size=0.2, random_state=42, stratify=y_encoded
     )
 
