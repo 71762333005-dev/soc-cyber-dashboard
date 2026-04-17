@@ -56,7 +56,7 @@ pipeline {
 
       stage('SonarQube Analysis') {
        steps {
-        withSonarQubeEnv('soc-jenkins') {
+        withSonarQubeEnv('soc-cyber') {
             sh '''
             sonar-scanner \
             -Dsonar.projectKey=soc-cyber-dashboard \
