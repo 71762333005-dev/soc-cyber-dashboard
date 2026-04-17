@@ -66,6 +66,7 @@ pipeline {
                 -Dsonar.token=$SONAR_TOKEN \
                 -Dsonar.python.coverage.reportPaths=coverage.xml \
                 -Dsonar.exclusions=venv/**,**/__pycache__/**,**/*.csv,**/*.pkl
+                -Dsonar.javascript.enabled=false
                 '''
             }
         }
