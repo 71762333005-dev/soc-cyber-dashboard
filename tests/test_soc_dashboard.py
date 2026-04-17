@@ -1,9 +1,11 @@
 import pytest
 
+
 # Test 1: Flask app loads
 def test_app_import():
     try:
         import app
+
         assert True
     except Exception as e:
         pytest.fail(f"App failed to load: {e}")
@@ -12,9 +14,10 @@ def test_app_import():
 # Test 2: Flask home route (SOC dashboard UI)
 def test_home_route():
     from app import app
+
     client = app.test_client()
-    
-    response = client.get('/')
+
+    response = client.get("/")
     assert response.status_code == 200
 
 
@@ -22,6 +25,7 @@ def test_home_route():
 def test_predict_import():
     try:
         import predict
+
         assert True
     except Exception as e:
         pytest.fail(f"Predict module error: {e}")
@@ -39,7 +43,3 @@ def test_dummy_prediction():
     result = model.predict(sample_input)
 
     assert result is not None
- 
-
-
-
