@@ -63,13 +63,13 @@ class AttackPredictor:
         if os.path.exists(mapping_path):
             df = pd.read_csv(mapping_path)
 
+            # FIX: ensure mapping is string-safe
             self.attack_mapping = dict(zip(df["attack_id"], df["attack_name"]))
             self.reverse_mapping = dict(zip(df["attack_name"], df["attack_id"]))
 
     # ---------------- FEATURE ENGINEERING ---------------- #
     def preprocess_input(self, raw_data):
-        df = pd.DataFrame(columns=self.feature_names)
-        df.loc[0] = 0
+        df = pd.DataFrame(0, index=[0], columns=self.feature_names)
 
         numeric_map = {
             "duration": "duration",
@@ -85,9 +85,13 @@ class AttackPredictor:
             "dst_host_srv_count": "dst_host_srv_count",
         }
 
+        # FIX: safe numeric conversion
         for raw_key, feature in numeric_map.items():
             if raw_key in raw_data and feature in self.feature_names:
-                df[feature] = float(raw_data[raw_key])
+                try:
+                    df.at[0, feature] = float(raw_data[raw_key])
+                except:
+                    df.at[0, feature] = 0.0
 
         self._encode_categorical(df, raw_data)
 
@@ -104,11 +108,14 @@ class AttackPredictor:
             self._encode_one_hot(df, raw_data["flag"], "flag_", upper=True)
 
     def _encode_one_hot(self, df, value, prefix, upper=False):
+        if value is None:
+            return
+
         val = value.upper() if upper else value.lower()
 
         for col in self.feature_names:
             if col.startswith(prefix):
-                df[col] = 1 if col == f"{prefix}{val}" else 0
+                df[col] = 1 if col == f"{prefix}{val}" else df[col]
 
     # ---------------- PREDICTION ---------------- #
     def predict(self, input_data):
@@ -121,7 +128,9 @@ class AttackPredictor:
 
             prediction_id, confidence = self._get_prediction(X)
 
-            attack_type = self.attack_mapping.get(prediction_id, "unknown")
+            # FIX: ensure correct mapping even if int/string mismatch
+            attack_type = self.attack_mapping.get(int(prediction_id), "unknown")
+
             risk_level = self._calculate_risk(attack_type, confidence)
 
             self.log_prediction(input_data, attack_type, confidence, risk_level)
@@ -133,18 +142,16 @@ class AttackPredictor:
             return "error", 0.0, "UNKNOWN"
 
     def _get_prediction(self, x):
-        """
-        FIXED:
-        - removed wrong variable X
-        - fixed consistency
-        """
         prediction = self.model.predict(x)[0]
+
         probabilities = self.model.predict_proba(x)[0]
         confidence = float(max(probabilities))
 
         return prediction, confidence
 
     def _calculate_risk(self, attack_type, confidence):
+        attack_type = str(attack_type).lower()
+
         if attack_type == "normal":
             return "LOW"
 
@@ -165,7 +172,7 @@ class AttackPredictor:
                 "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 "src_ip": input_data.get("src_ip", "unknown"),
                 "duration": input_data.get("duration", 0),
-                "protocol": input_data.get("protocol_type", "unknown"),
+                "protocol_type": input_data.get("protocol_type", "unknown"),
                 "service": input_data.get("service", "unknown"),
                 "src_bytes": input_data.get("src_bytes", 0),
                 "dst_bytes": input_data.get("dst_bytes", 0),
