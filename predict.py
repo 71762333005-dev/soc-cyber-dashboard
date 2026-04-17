@@ -5,20 +5,21 @@ Handles loading model and making predictions
 
 import joblib
 import pandas as pd
-import numpy as np
 import json
 import os
 from datetime import datetime
 import logging
 
+# Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# ✅ FIX: constant for Sonar duplication issue
+# CONSTANT (fix Sonar duplicate literal issue)
 PREDICTIONS_LOG_FILE = "data/predictions_log.csv"
 
 
 class AttackPredictor:
+    """Main predictor class for cyber attack detection"""
 
     def __init__(self):
         self.model = None
@@ -28,46 +29,50 @@ class AttackPredictor:
         self.model_loaded = False
         self.load_model()
 
-    # ---------------- MODEL ----------------
+    # ---------------- LOAD MODEL ---------------- #
     def load_model(self):
         try:
             model_path = "model/random_forest_model.joblib"
 
             if not os.path.exists(model_path):
-                logger.warning("Model not found")
+                logger.warning("No trained model found. Run training first.")
                 return False
 
             self.model = joblib.load(model_path)
+            logger.info("Model loaded successfully")
 
-            if os.path.exists("model/feature_names.json"):
-                with open("model/feature_names.json") as f:
-                    self.feature_names = json.load(f)
-
-            if os.path.exists("model/attack_mapping.csv"):
-                df = pd.read_csv("model/attack_mapping.csv")
-                self.attack_mapping = dict(zip(df["attack_id"], df["attack_name"]))
-                self.reverse_mapping = dict(zip(df["attack_name"], df["attack_id"]))
+            self._load_features()
+            self._load_attack_mapping()
 
             self.model_loaded = True
             return True
 
         except Exception as e:
-            logger.error(f"Model load error: {e}")
+            logger.error(f"Error loading model: {e}")
             return False
 
-    # ---------------- MAIN PREPROCESS ----------------
+    def _load_features(self):
+        feature_path = "model/feature_names.json"
+
+        if os.path.exists(feature_path):
+            with open(feature_path, "r") as f:
+                self.feature_names = json.load(f)
+
+    def _load_attack_mapping(self):
+        mapping_path = "model/attack_mapping.csv"
+
+        if os.path.exists(mapping_path):
+            df = pd.read_csv(mapping_path)
+
+            self.attack_mapping = dict(zip(df["attack_id"], df["attack_name"]))
+            self.reverse_mapping = dict(zip(df["attack_name"], df["attack_id"]))
+
+    # ---------------- FEATURE ENGINEERING ---------------- #
     def preprocess_input(self, raw_data):
         df = pd.DataFrame(columns=self.feature_names)
         df.loc[0] = 0
 
-        df = self._numeric_features(raw_data, df)
-        df = self._categorical_features(raw_data, df)
-
-        return df
-
-    # ---------------- NUMERIC ----------------
-    def _numeric_features(self, raw, df):
-        mapping = {
+        numeric_map = {
             "duration": "duration",
             "src_bytes": "src_bytes",
             "dst_bytes": "dst_bytes",
@@ -81,66 +86,73 @@ class AttackPredictor:
             "dst_host_srv_count": "dst_host_srv_count",
         }
 
-        for k, v in mapping.items():
-            if k in raw and v in self.feature_names:
-                df[v] = float(raw[k])
+        for raw_key, feature in numeric_map.items():
+            if raw_key in raw_data and feature in self.feature_names:
+                df[feature] = float(raw_data[raw_key])
+
+        self._encode_categorical(df, raw_data)
 
         return df
 
-    # ---------------- CATEGORICAL ----------------
-    def _categorical_features(self, raw, df):
-        if "protocol_type" in raw:
-            self._encode(df, "protocol_type", raw["protocol_type"].lower())
+    def _encode_categorical(self, df, raw_data):
+        if "protocol_type" in raw_data:
+            self._encode_one_hot(df, raw_data["protocol_type"], "protocol_type_")
 
-        if "service" in raw:
-            self._encode(df, "service", raw["service"].lower())
+        if "service" in raw_data:
+            self._encode_one_hot(df, raw_data["service"], "service_")
 
-        if "flag" in raw:
-            self._encode(df, "flag", raw["flag"].upper())
+        if "flag" in raw_data:
+            self._encode_one_hot(df, raw_data["flag"], "flag_", upper=True)
 
-        return df
+    def _encode_one_hot(self, df, value, prefix, upper=False):
+        val = value.upper() if upper else value.lower()
 
-    def _encode(self, df, prefix, value):
         for col in self.feature_names:
-            if col.startswith(prefix + "_"):
-                df[col] = 1 if col == f"{prefix}_{value}" else 0
+            if col.startswith(prefix):
+                df[col] = 1 if col == f"{prefix}{val}" else 0
 
-    # ---------------- PREDICTION ----------------
+    # ---------------- PREDICTION ---------------- #
     def predict(self, input_data):
         if not self.model_loaded:
             return "Model not loaded", 0.0, "UNKNOWN"
 
         try:
-            X = self.preprocess_input(input_data)[self.feature_names]
+            X = self.preprocess_input(input_data)
+            X = X[self.feature_names]
 
-            pred = self.model.predict(X)[0]
-            probs = self.model.predict_proba(X)[0]
-            conf = float(max(probs))
+            prediction_id, confidence = self._get_prediction(X)
+            attack_type = self.attack_mapping.get(prediction_id, "unknown")
 
-            attack = self.attack_mapping.get(pred, "unknown")
+            risk_level = self._calculate_risk(attack_type, confidence)
 
-            risk = self._risk_level(attack, conf)
+            self.log_prediction(input_data, attack_type, confidence, risk_level)
 
-            self.log_prediction(input_data, attack, conf, risk)
-
-            return attack, conf, risk
+            return attack_type, confidence, risk_level
 
         except Exception as e:
             logger.error(f"Prediction error: {e}")
             return "error", 0.0, "UNKNOWN"
 
-    # ---------------- RISK LOGIC ----------------
-    def _risk_level(self, attack_type, confidence):
+    def _get_prediction(self, X):
+        prediction = self.model.predict(X)[0]
+        probabilities = self.model.predict_proba(X)[0]
+        confidence = float(max(probabilities))
+        return prediction, confidence
+
+    def _calculate_risk(self, attack_type, confidence):
         if attack_type == "normal":
             return "LOW"
+
         if confidence > 0.85:
             return "CRITICAL" if attack_type in ["dos", "u2r"] else "HIGH"
+
         if confidence > 0.60:
             return "MEDIUM"
+
         return "LOW"
 
-    # ---------------- LOGGING ----------------
-    def log_prediction(self, input_data, attack, confidence, risk):
+    # ---------------- LOGGING ---------------- #
+    def log_prediction(self, input_data, attack_type, confidence, risk_level):
         try:
             os.makedirs("data", exist_ok=True)
 
@@ -153,54 +165,58 @@ class AttackPredictor:
                 "src_bytes": input_data.get("src_bytes", 0),
                 "dst_bytes": input_data.get("dst_bytes", 0),
                 "flag": input_data.get("flag", "unknown"),
-                "attack_type": attack,
+                "attack_type": attack_type,
                 "confidence": round(confidence, 3),
-                "risk_level": risk,
+                "risk_level": risk_level,
             }
 
-            df = pd.DataFrame([log_entry])
+            log_df = pd.DataFrame([log_entry])
 
             if os.path.exists(PREDICTIONS_LOG_FILE):
-                old = pd.read_csv(PREDICTIONS_LOG_FILE)
-                df = pd.concat([old, df], ignore_index=True)
-
-                if len(df) > 1000:
-                    df = df.tail(1000)
-
-            df.to_csv(PREDICTIONS_LOG_FILE, index=False)
+                existing = pd.read_csv(PREDICTIONS_LOG_FILE)
+                updated = pd.concat([existing, log_df], ignore_index=True)
+                updated = updated.tail(1000)
+                updated.to_csv(PREDICTIONS_LOG_FILE, index=False)
+            else:
+                log_df.to_csv(PREDICTIONS_LOG_FILE, index=False)
 
         except Exception as e:
             logger.error(f"Logging error: {e}")
 
-    # ---------------- STATS ----------------
+    # ---------------- STATS ---------------- #
     def get_stats(self):
         try:
             if not os.path.exists(PREDICTIONS_LOG_FILE):
-                return {
-                    "total_predictions": 0,
-                    "total_attacks": 0,
-                    "critical_alerts": 0,
-                    "high_risk_alerts": 0,
-                    "attack_rate": 0,
-                }
+                return self._empty_stats()
 
             df = pd.read_csv(PREDICTIONS_LOG_FILE)
 
             total = len(df)
             attacks = len(df[df["attack_type"] != "normal"])
+            critical = len(df[df["risk_level"] == "CRITICAL"])
+            high = len(df[df["risk_level"] == "HIGH"])
 
             return {
                 "total_predictions": total,
                 "total_attacks": attacks,
-                "critical_alerts": len(df[df["risk_level"] == "CRITICAL"]),
-                "high_risk_alerts": len(df[df["risk_level"] == "HIGH"]),
+                "critical_alerts": critical,
+                "high_risk_alerts": high,
                 "attack_rate": round(attacks / total * 100, 1) if total else 0,
             }
 
         except Exception as e:
             logger.error(f"Stats error: {e}")
-            return {}
-        
+            return self._empty_stats()
+
+    def _empty_stats(self):
+        return {
+            "total_predictions": 0,
+            "total_attacks": 0,
+            "critical_alerts": 0,
+            "high_risk_alerts": 0,
+            "attack_rate": 0,
+        }
+
 
 # Global instance
 predictor = AttackPredictor()
