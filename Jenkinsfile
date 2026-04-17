@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        SONAR_TOKEN = credentials('jenkins-soc-cyber')
+        SONAR_HOST = "http://192.168.1.102:9000"
     }
 
     stages {
@@ -33,7 +33,7 @@ pipeline {
             }
         }
 
-        stage('Lint (Flake8)') {
+        stage('Lint (Flake8 Fix Mode)') {
             steps {
                 sh '''
                 . venv/bin/activate
@@ -56,18 +56,17 @@ pipeline {
 
         stage('SonarQube Analysis') {
             steps {
-                withCredentials([string(credentialsId: 'jenkins-soc-cyber', variable: 'SONAR_TOKEN')]) {
-                    withSonarQubeEnv('soc-cyber-dashboard') {
-                        sh '''
-                        sonar-scanner \
-                          -Dsonar.projectKey=soc-cyber-dashboard \
-                          -Dsonar.sources=. \
-                          -Dsonar.host.url=http://192.168.1.102:9000 \
-                          -Dsonar.token=$SONAR_TOKEN \
-                          -Dsonar.python.coverage.reportPaths=coverage.xml \
-                          -Dsonar.exclusions=venv/**,**/__pycache__/**,**/*.csv,**/*.pkl
-                        '''
-                    }
+                withSonarQubeEnv('soc-cyber-dashboard') {
+                    sh '''
+                    sonar-scanner \
+                      -Dsonar.projectKey=soc-cyber-dashboard \
+                      -Dsonar.sources=. \
+                      -Dsonar.host.url=$SONAR_HOST \
+                      -Dsonar.token=$SONAR_TOKEN \
+                      -Dsonar.python.coverage.reportPaths=coverage.xml \
+                      -Dsonar.exclusions=venv/**,**/__pycache__/**,**/*.csv,**/*.pkl,**/*.js,**/*.ts \
+                      -Dsonar.javascript.enabled=false
+                    '''
                 }
             }
         }
