@@ -54,22 +54,23 @@ pipeline {
             }
         }
 
-      stage('SonarQube Analysis') {
-       steps {
-        withSonarQubeEnv('soc-cyber-dashboard') {
-            sh '''
-            sonar-scanner \
-            -Dsonar.projectKey=soc-cyber-dashboard \
-            -Dsonar.sources=. \
-            -Dsonar.host.url=http://192.168.1.102:9000 \
-            -Dsonar.login=$SONAR_TOKEN \
-            -Dsonar.python.coverage.reportPaths=coverage.xml \
-            -Dsonar.exclusions=venv/**,**/__pycache__/**,**/*.csv,**/*.pkl
-            '''
+  stage('SonarQube Analysis') {
+    steps {
+        withCredentials([string(credentialsId: 'jenkins-soc-cyber', variable: 'SONAR_TOKEN')]) {
+            withSonarQubeEnv('soc-cyber-dashboard') {
+                sh '''
+                sonar-scanner \
+                -Dsonar.projectKey=soc-cyber-dashboard \
+                -Dsonar.sources=. \
+                -Dsonar.host.url=http://192.168.1.102:9000 \
+                -Dsonar.token=$SONAR_TOKEN \
+                -Dsonar.python.coverage.reportPaths=coverage.xml \
+                -Dsonar.exclusions=venv/**,**/__pycache__/**,**/*.csv,**/*.pkl
+                '''
+            }
         }
     }
 }
-
         stage('Quality Gate') {
             steps {
                 timeout(time: 2, unit: 'MINUTES') {
