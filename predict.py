@@ -46,7 +46,7 @@ class AttackPredictor:
             self.model_loaded = True
             return True
 
-        except Exception as e:
+        except (OSError, FileNotFoundError, ValueError, EOFError) as e:
             logger.error(f"Error loading model: {e}")
             return False
 
@@ -54,18 +54,24 @@ class AttackPredictor:
         feature_path = "model/feature_names.json"
 
         if os.path.exists(feature_path):
-            with open(feature_path, "r") as f:
-                self.feature_names = json.load(f)
+            try:
+                with open(feature_path, "r") as f:
+                    self.feature_names = json.load(f)
+            except (OSError, json.JSONDecodeError, ValueError) as e:
+                logger.error(f"Feature loading error: {e}")
 
     def _load_attack_mapping(self):
         mapping_path = "model/attack_mapping.csv"
 
         if os.path.exists(mapping_path):
-            df = pd.read_csv(mapping_path)
+            try:
+                df = pd.read_csv(mapping_path)
 
-            # FIX: ensure mapping is string-safe
-            self.attack_mapping = dict(zip(df["attack_id"], df["attack_name"]))
-            self.reverse_mapping = dict(zip(df["attack_name"], df["attack_id"]))
+                self.attack_mapping = dict(zip(df["attack_id"], df["attack_name"]))
+                self.reverse_mapping = dict(zip(df["attack_name"], df["attack_id"]))
+
+            except (OSError, pd.errors.ParserError, KeyError) as e:
+                logger.error(f"Mapping load error: {e}")
 
     # ---------------- FEATURE ENGINEERING ---------------- #
     def preprocess_input(self, raw_data):
@@ -85,27 +91,30 @@ class AttackPredictor:
             "dst_host_srv_count": "dst_host_srv_count",
         }
 
-        # FIX: safe numeric conversion
         for raw_key, feature in numeric_map.items():
-            if raw_key in raw_data and feature in self.feature_names:
-                try:
+            try:
+                if raw_key in raw_data and feature in self.feature_names:
                     df.at[0, feature] = float(raw_data[raw_key])
-                except:
-                    df.at[0, feature] = 0.0
+            except (ValueError, TypeError):
+                df.at[0, feature] = 0.0
 
         self._encode_categorical(df, raw_data)
 
         return df
 
     def _encode_categorical(self, df, raw_data):
-        if "protocol_type" in raw_data:
-            self._encode_one_hot(df, raw_data["protocol_type"], "protocol_type_")
+        try:
+            if "protocol_type" in raw_data:
+                self._encode_one_hot(df, raw_data["protocol_type"], "protocol_type_")
 
-        if "service" in raw_data:
-            self._encode_one_hot(df, raw_data["service"], "service_")
+            if "service" in raw_data:
+                self._encode_one_hot(df, raw_data["service"], "service_")
 
-        if "flag" in raw_data:
-            self._encode_one_hot(df, raw_data["flag"], "flag_", upper=True)
+            if "flag" in raw_data:
+                self._encode_one_hot(df, raw_data["flag"], "flag_", upper=True)
+
+        except (KeyError, TypeError) as e:
+            logger.error(f"Categorical encoding error: {e}")
 
     def _encode_one_hot(self, df, value, prefix, upper=False):
         if value is None:
@@ -115,7 +124,10 @@ class AttackPredictor:
 
         for col in self.feature_names:
             if col.startswith(prefix):
-                df[col] = 1 if col == f"{prefix}{val}" else df[col]
+                try:
+                    df[col] = 1 if col == f"{prefix}{val}" else df[col]
+                except KeyError:
+                    continue
 
     # ---------------- PREDICTION ---------------- #
     def predict(self, input_data):
@@ -128,7 +140,6 @@ class AttackPredictor:
 
             prediction_id, confidence = self._get_prediction(X)
 
-            # FIX: ensure correct mapping even if int/string mismatch
             attack_type = self.attack_mapping.get(int(prediction_id), "unknown")
 
             risk_level = self._calculate_risk(attack_type, confidence)
@@ -137,13 +148,17 @@ class AttackPredictor:
 
             return attack_type, confidence, risk_level
 
-        except Exception as e:
-            logger.error(f"Prediction error: {e}")
+        except (ValueError, KeyError, TypeError) as e:
+            logger.error(f"Prediction data error: {e}")
             return "error", 0.0, "UNKNOWN"
+
+        except Exception as e:
+            # fallback: re-raise unexpected issues for visibility
+            logger.error(f"Unexpected prediction failure: {e}")
+            raise
 
     def _get_prediction(self, x):
         prediction = self.model.predict(x)[0]
-
         probabilities = self.model.predict_proba(x)[0]
         confidence = float(max(probabilities))
 
@@ -192,7 +207,7 @@ class AttackPredictor:
             else:
                 log_df.to_csv(PREDICTIONS_LOG_FILE, index=False)
 
-        except Exception as e:
+        except (OSError, IOError, PermissionError, pd.errors.EmptyDataError) as e:
             logger.error(f"Logging error: {e}")
 
     # ---------------- STATS ---------------- #
@@ -216,7 +231,7 @@ class AttackPredictor:
                 "attack_rate": round(attacks / total * 100, 1) if total else 0,
             }
 
-        except Exception as e:
+        except (OSError, pd.errors.ParserError, KeyError) as e:
             logger.error(f"Stats error: {e}")
             return self._empty_stats()
 
