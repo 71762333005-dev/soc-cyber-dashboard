@@ -22,7 +22,6 @@ import joblib
 
 # ---------------- LOAD DATA ---------------- #
 def load_and_preprocess_data():
-    """Load NSL-KDD dataset"""
     print("📊 Loading dataset...")
 
     if not os.path.exists("dataset/nsl_kdd.csv"):
@@ -65,7 +64,10 @@ def engineer_features(df):
 
     categorical_features = ["protocol_type", "service", "flag"]
 
+    # FIX 1: ensure stable columns (IMPORTANT)
     X = pd.get_dummies(df[selected_features], columns=categorical_features)
+    X = X.sort_index(axis=1)
+
     y = df["attack_type"]
 
     def simplify_attack(a):
@@ -103,7 +105,6 @@ def train_model(X, y):
     label_encoder = LabelEncoder()
     y_encoded = label_encoder.fit_transform(y)
 
-    # FIXED: correct train_test_split
     X_train, X_test, y_train, y_test = train_test_split(
         X,
         y_encoded,
@@ -146,6 +147,9 @@ def save_model_artifacts(model, label_encoder, metrics, feature_names):
     os.makedirs("model", exist_ok=True)
 
     joblib.dump(model, "model/random_forest_model.joblib")
+
+    # FIX 2: save label encoder properly
+    joblib.dump(label_encoder, "model/label_encoder.joblib")
 
     attack_mapping = pd.DataFrame({
         "attack_id": range(len(label_encoder.classes_)),
