@@ -10,6 +10,9 @@ import os
 from datetime import datetime, timedelta
 import random
 import hashlib
+import signal
+
+signal.signal(signal.SIGTERM, lambda *args: exit(0))
 
 app = Flask(__name__)
 
