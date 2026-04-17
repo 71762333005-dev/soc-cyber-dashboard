@@ -3,6 +3,8 @@ pipeline {
 
     environment {
         SONAR_HOST = "http://192.168.1.102:9000"
+        IMAGE_NAME = "asmi25/soc-dashboard"
+        TAG = "latest"
     }
 
     stages {
@@ -33,7 +35,7 @@ pipeline {
             }
         }
 
-        stage('Lint (Flake8 Fix Mode)') {
+        stage('Lint (Flake8)') {
             steps {
                 sh '''
                 . venv/bin/activate
@@ -74,19 +76,29 @@ pipeline {
         stage('Quality Gate') {
             steps {
                 timeout(time: 10, unit: 'MINUTES') {
-                    waitForQualityGate abortPipeline: false
+                    waitForQualityGate abortPipeline: true
                 }
             }
         }
 
-     stage('Build Docker Image') {
-        steps {
-           sh '''
-           docker build -t asmi25/soc-dashboard:latest .
-          '''
-       }
-     }
-  }
+        stage('Build Docker Image') {
+            steps {
+                sh '''
+                docker build -t $IMAGE_NAME:$TAG .
+                '''
+            }
+        }
+
+        stage('Push Docker Image') {
+            steps {
+                withDockerRegistry([credentialsId: 'dockerhub-creds', url: '']) {
+                    sh '''
+                    docker push $IMAGE_NAME:$TAG
+                    '''
+                }
+            }
+        }
+    }
 
     post {
         always {
